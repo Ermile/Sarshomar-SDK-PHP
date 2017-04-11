@@ -11,6 +11,8 @@ class sdk
 
 	private $error_descreption, $error_code, $status = true;
 
+	public $headers = [];
+
 	/**
 	 * configurate for requests
 	 * @param array $_config
@@ -68,6 +70,10 @@ class sdk
 		$curl_options[CURLOPT_CUSTOMREQUEST] = $_method;
 		$curl_options[CURLOPT_HTTPHEADER] = array("cache-control: no-cache");
 		$curl_options[CURLOPT_HTTPHEADER][] = "authorization: " . $this->api_token;
+
+		foreach ($this->headers as $key => $value) {
+			$curl_options[CURLOPT_HTTPHEADER][] = "$key: $value";
+		}
 
 		$url = "https://sarshomar.com/api/v";
 		$url .= $this->version;
