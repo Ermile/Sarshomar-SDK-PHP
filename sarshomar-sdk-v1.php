@@ -13,6 +13,8 @@ class sdk
 
 	public $headers = [];
 
+	public $language = 'en';
+
 	/**
 	 * configurate for requests
 	 * @param array $_config
@@ -46,8 +48,14 @@ class sdk
 	 * @param  array  $_parm 	request body or parm
 	 * @return array  			response
 	 */
-	public function request(string $_method, string $_url, $_parm = [])
+	public function request(string $_method, string $_url, $_parm = [], $lang = 'en')
 	{
+
+		$this->error_descreption = false;
+		$this->error_code = false;
+		$this->error_detail = false;
+		$this->status = true;
+
 		$_method = strtoupper($_method);
 
 		if(!in_array($_method, ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']))
@@ -68,14 +76,18 @@ class sdk
 		$curl_options[CURLOPT_TIMEOUT] = 60;
 		$curl_options[CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
 		$curl_options[CURLOPT_CUSTOMREQUEST] = $_method;
+		$curl_options[CURLOPT_HEADER] = true;
 		$curl_options[CURLOPT_HTTPHEADER] = array("cache-control: no-cache");
 		$curl_options[CURLOPT_HTTPHEADER][] = "authorization: " . $this->api_token;
 
 		foreach ($this->headers as $key => $value) {
 			$curl_options[CURLOPT_HTTPHEADER][] = "$key: $value";
 		}
-
-		$url = "https://sarshomar.com/api/v";
+		$url = "https://sarshomar.com";
+		if($lang != 'en'){
+			$url .= "/" . $lang;
+		}
+		$url .= "/api/v";
 		$url .= $this->version;
 		$url .= '/' . $_url;
 
@@ -98,39 +110,53 @@ class sdk
 		curl_setopt_array($curl, $curl_options);
 
 		$response 	= curl_exec($curl);
+		$header_len = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+		$header 	= substr($response, 0, $header_len);
+		$body 		= substr($response, $header_len);
 		$err 		= curl_error($curl);
 
+		$headers = [];
+		$status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+		foreach (explode("\n", $header) as $key => $value) {
+			if($key == 0 && substr($value, 0, 5) == "HTTP/") continue;
+
+			$array_of_header = explode(":", $value, 2);
+			$array_of_header[0] = trim($array_of_header[0]);
+			if($array_of_header[0] == '') continue;
+
+			$headers[$array_of_header[0]] = isset($array_of_header[1]) ? trim($array_of_header[1]) : null;
+		}
 		if($err)
 		{
-			return $this->make_error(curl_error($curl), curl_errno($curl));
+			$this->make_error(curl_error($curl), curl_errno($curl));
+			return new sarshomar_response(null, null, null, $this->error());
 		}
 
-		if(!$response)
+		if(!$body)
 		{
-			return $this->make_error("Response is empty!", 108);
+			$this->make_error("Response is empty!", 108);
+			return new sarshomar_response(null, $headers, $status, $this->error());
 		}
 
-		if(!$json = json_decode($response, true))
+		if(!$json = json_decode($body, true))
 		{
-			return $this->make_error("Response is not json syntax", 109);
+			$this->make_error("Response is not json syntax", null, $body);
+			return new sarshomar_response(null, $headers, $status, $this->error());
 		}
 
 		if(!isset($json['status']))
 		{
-			return $this->make_error("Response is has not valid arguments", 111);
+			$this->make_error("Response is has not valid arguments", 111);
+			return new sarshomar_response($json, $headers, $status, $this->error());
 		}
 
 		if(!$json['status'])
 		{
-			return $this->make_error($json['messages']['error'][0]['title'], 112, $json['messages']);
+			$this->make_error($json['messages']['error'][0]['title'], 112, $json['messages']);
+			return new sarshomar_response($json, $headers, $status, $this->error());
 		}
 
-		if(isset($json['result']))
-		{
-			return $json['result'];
-		}
-
-		return $json;
+		return new sarshomar_response($json, $header, $status, $this->error());
 	}
 
 	/**
@@ -195,8 +221,42 @@ class sdk
 			}
 			$url = $_args[0];
 			$parm = isset($_args[1]) ? $_args[1] : [];
-			return $this->request($_name, $url, $parm);
+			$lang = isset($_args[2]) ? $_args[2] : $this->language;
+			return $this->request($_name, $url, $parm, $lang);
 		}
+	}
+}
+
+class sarshomar_response
+{
+	public $response, $headers, $status, $error;
+
+	public function __construct($_response, $_header, $_status, $_error)
+	{
+		$this->response = $_response;
+		$this->headers 	= $_header;
+		$this->status 	= $_status;
+		$this->error 	= $_error;
+	}
+
+	public function response()
+	{
+		return $response;
+	}
+
+	public function result()
+	{
+		return isset($response['result']) ? $response['result'] : null;
+	}
+
+	public function status()
+	{
+		return $status;
+	}
+
+	public function error()
+	{
+		return $error;
 	}
 }
 ?>
