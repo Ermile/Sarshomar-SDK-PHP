@@ -241,22 +241,22 @@ class sarshomar_response
 
 	public function response()
 	{
-		return $response;
+		return $this->response;
 	}
 
 	public function result()
 	{
-		return isset($response['result']) ? $response['result'] : null;
+		return isset($this->response['result']) ? $this->response['result'] : null;
 	}
 
 	public function status()
 	{
-		return $status;
+		return $this->status;
 	}
 
 	public function error()
 	{
-		return $error;
+		return $this->error;
 	}
 }
 ?>
